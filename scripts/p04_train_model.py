@@ -2,6 +2,7 @@ import os
 import subprocess
 import logging
 import shutil
+import sys
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -14,7 +15,7 @@ DATA_YAML_PATH = os.path.join(PROJECT_ROOT, 'data.yaml') # data.yaml is in proje
 # YOLOv5 training parameters (can be overridden by CLI args or config file)
 DEFAULT_YOLO_MODEL_CFG = 'yolov5s.yaml' # Predefined model configuration
 DEFAULT_BATCH_SIZE = 8
-DEFAULT_EPOCHS = 100 # Set to a smaller number for quick testing, e.g., 3-5
+DEFAULT_EPOCHS = 2 # Set to a smaller number for quick testing, e.g., 3-5
 DEFAULT_RUN_NAME = 'license_plate_model'
 DEFAULT_IMG_SIZE = 640 # Default image size for training
 
@@ -35,11 +36,10 @@ def install_yolov5_requirements():
 
     logging.info(f"Installing YOLOv5 requirements from {requirements_path}...")
     try:
-        # It's good practice to use the python executable that's running this script
-        # For simplicity, assuming 'pip' is in PATH and corresponds to the correct env.
-        # Consider using sys.executable for more robustness: [sys.executable, '-m', 'pip', 'install', ...]
-        process = subprocess.run(['pip', 'install', '-r', requirements_path],
-                                 check=True, capture_output=True, text=True, cwd=YOLOV5_DIR) # Run from YOLOV5_DIR
+        # Use the same Python interpreter that's running this script
+        process = subprocess.run([sys.executable, '-m', 'pip', 'install', '-r', requirements_path],
+                                 check=True, capture_output=True, text=True, 
+                                 cwd=YOLOV5_DIR, encoding='utf-8', errors='replace') # Run from YOLOV5_DIR with proper encoding
         logging.info("YOLOv5 requirements installed successfully.")
         logging.debug(f"Pip install output:\n{process.stdout}")
         return True
@@ -109,7 +109,7 @@ def train_yolo_model(data_yaml=DATA_YAML_PATH,
     # or paths in data.yaml need to be absolute or relative to where train.py is run.
     # Here, data_yaml path is absolute.
     cmd = [
-        'python', train_script_path,
+        sys.executable, train_script_path,  # Use the same Python interpreter
         '--data', data_yaml,
         '--cfg', model_cfg_path, # This should be path relative to yolov5 dir or absolute
         '--batch-size', str(batch_size),
@@ -125,7 +125,8 @@ def train_yolo_model(data_yaml=DATA_YAML_PATH,
     try:
         # Running train.py from the PROJECT_ROOT, so paths in data.yaml (relative to project_root) are fine.
         # YOLOv5 train.py itself handles its internal relative paths from its own location.
-        process = subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=PROJECT_ROOT) # Run from project root
+        process = subprocess.run(cmd, check=True, capture_output=True, text=True, 
+                                cwd=PROJECT_ROOT, encoding='utf-8', errors='replace') # Run from project root with proper encoding
         logging.info("YOLOv5 training completed successfully.")
         logging.debug(f"Training output:\n{process.stdout}")
 
