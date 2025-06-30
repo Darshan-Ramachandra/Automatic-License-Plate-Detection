@@ -41,13 +41,9 @@ def install_yolov5_requirements():
                                  check=True, capture_output=True, text=True, 
                                  cwd=YOLOV5_DIR, encoding='utf-8', errors='replace') # Run from YOLOV5_DIR with proper encoding
         logging.info("YOLOv5 requirements installed successfully.")
-        logging.debug(f"Pip install output:\n{process.stdout}")
         return True
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to install YOLOv5 requirements. Error: {e.stderr}")
-        # Log stdout as well, as sometimes pip outputs useful info there even on error
-        if e.stdout:
-            logging.error(f"Pip install stdout (on error):\n{e.stdout}")
         return False
     except FileNotFoundError: # If pip is not found
         logging.error("`pip` command not found. Ensure it's in your PATH.")
@@ -109,7 +105,7 @@ def train_yolo_model(data_yaml=DATA_YAML_PATH,
     # or paths in data.yaml need to be absolute or relative to where train.py is run.
     # Here, data_yaml path is absolute.
     cmd = [
-        sys.executable, train_script_path,  # Use the same Python interpreter
+        sys.executable, '-W', 'ignore', train_script_path,  # Use the same Python interpreter and ignore warnings
         '--data', data_yaml,
         '--cfg', model_cfg_path, # This should be path relative to yolov5 dir or absolute
         '--batch-size', str(batch_size),
@@ -125,10 +121,19 @@ def train_yolo_model(data_yaml=DATA_YAML_PATH,
     try:
         # Running train.py from the PROJECT_ROOT, so paths in data.yaml (relative to project_root) are fine.
         # YOLOv5 train.py itself handles its internal relative paths from its own location.
-        process = subprocess.run(cmd, check=True, capture_output=True, text=True, 
-                                cwd=PROJECT_ROOT, encoding='utf-8', errors='replace') # Run from project root with proper encoding
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, 
+                                 cwd=PROJECT_ROOT, encoding='utf-8', errors='replace')
+        
+        for line in iter(process.stdout.readline, ''):
+            sys.stdout.write(line)
+        
+        process.stdout.close()
+        return_code = process.wait()
+
+        if return_code:
+            raise subprocess.CalledProcessError(return_code, cmd)
+
         logging.info("YOLOv5 training completed successfully.")
-        logging.debug(f"Training output:\n{process.stdout}")
 
         # Find the path to the best model weights
         # Default save location: yolov5/runs/train/[name]/weights/best.pt
@@ -147,8 +152,7 @@ def train_yolo_model(data_yaml=DATA_YAML_PATH,
 
     except subprocess.CalledProcessError as e:
         logging.error(f"YOLOv5 training failed. Return code: {e.returncode}")
-        logging.error(f"Stdout:\n{e.stdout}")
-        logging.error(f"Stderr:\n{e.stderr}")
+        logging.error("See console output above for details.")
         return None
     except FileNotFoundError: # If python is not found
         logging.error("`python` command not found. Ensure it's in your PATH and points to the correct interpreter for YOLOv5.")
